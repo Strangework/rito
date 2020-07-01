@@ -1,18 +1,11 @@
+from riot_api import RiotApi
+
 import pdb
 import json
-import requests
 import sys
-import time
 import traceback
 
 CHAMPION_ID_FILENAME = 'champion_id.json'
-
-# !! Load in API key in a neater way...
-API_KEY = ''
-CHAMPION_MASTERY_API = 'https://na1.api.riotgames.com/lol/champion-mastery/v4/champion-masteries/by-summoner/{}?api_key={}'
-MATCH_API = 'https://na1.api.riotgames.com/lol/match/v4/matches/{}?api_key={}'
-MATCH_BY_ACCOUNT_API = 'https://na1.api.riotgames.com/lol/match/v4/matchlists/by-account/{}?api_key={}'
-SUMMONER_BY_NAME_API = 'https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-name/{}?api_key={}'
 
 class Champion:
   # Load champion ID/name mapping
@@ -27,18 +20,7 @@ class Champion:
 
 class Match:
   def __init__(self, match_id):
-    while True:
-      resp = requests.get(
-          MATCH_API.format(match_id, API_KEY))
-      self._data = json.loads(resp.content)
- 
-      # If rate limited, wait and try again
-      # TODO : Move this to new ConnectionManager class
-      if 'status' not in self._data:
-        break
-      print('Rate limit exceeded - waiting for 5s')
-      time.sleep(5)
-
+    self._data = RiotApi.get_match(match_id)
 
   def get_data(self):
     return self._data
@@ -46,12 +28,10 @@ class Match:
 
 class Summoner:
   def __init__(self, name):
-    resp = requests.get(
-        SUMMONER_BY_NAME_API.format(name, API_KEY))
-    resp = json.loads(resp.content)
-    self._name = resp['name']
-    self._account_id = resp['accountId']
-    self._summoner_id = resp['id']
+    summ = RiotApi.get_summoner_by_name(name)
+    self._name = summ['name']
+    self._account_id = summ['accountId']
+    self._summoner_id = summ['id']
 
   def get_account_id(self):
     return self._account_id
@@ -61,18 +41,19 @@ class Summoner:
 
 def main():
   some_summ = Summoner(sys.argv[1])
-  resp = requests.get(
-      MATCH_BY_ACCOUNT_API.format(some_summ.get_account_id(), API_KEY))
-  resp = json.loads(resp.content)
-  matches = resp['matches']
+  matches = RiotApi.get_matches_by_account(some_summ.get_account_id())
+  print('Retrieved {} matches'.format(matches['endIndex'] - matches['startIndex']))
 
-  for match in matches:
+  match_num = 0
+  for match in matches['matches']:
+    match_num += 1
     try:
       match = Match(match['gameId'])
       match_raw = match.get_data()
 
       # Only matchmade Rift, bois
       if match_raw['gameMode'] != 'CLASSIC' or match_raw['gameType'] != 'MATCHED_GAME':
+        print("{} is non-Rift or custom".format(match_num))
         continue
 
       # Find desired summoner among participants
@@ -90,7 +71,8 @@ def main():
               part['stats']['neutralMinionsKilled'])
           game_dur = match_raw['gameDuration']
           cs_per_min = cs/float(game_dur/60)
-          print("{} : {}cs / {}min {}s = {:0.2f}cs/min".format(
+          print("{} : {}, {}cs / {}min {}s = {:0.2f}cs/min".format(
+              match_num,
               champ_name,
               cs,
               game_dur//60,
@@ -101,7 +83,6 @@ def main():
       extype, value, tb = sys.exc_info()
       traceback.print_exc()
       pdb.post_mortem(tb)
-
 
 if __name__ == '__main__':
   main()
