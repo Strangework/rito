@@ -4,6 +4,8 @@ import requests
 import time
 
 API_KEY_FILENAME = 'key'
+CHAMPION_ID_FILENAME = 'champion_id.json'
+
 CHAMPION_MASTERY_API = 'https://na1.api.riotgames.com/lol/champion-mastery/v4/champion-masteries/by-summoner/{}?api_key={}'
 MATCH_API = 'https://na1.api.riotgames.com/lol/match/v4/matches/{}?api_key={}'
 MATCHES_BY_ACCOUNT_API = 'https://na1.api.riotgames.com/lol/match/v4/matchlists/by-account/{}?api_key={}'
@@ -47,7 +49,41 @@ class RiotApi:
 
   @classmethod
   @api_retry
-  def get_matches_by_account(cls, account_id):
+  def get_matches_by_account(cls, account_id, match_count):
     resp = requests.get(
-        MATCHES_BY_ACCOUNT_API.format(account_id, cls.api_key))
+        MATCHES_BY_ACCOUNT_API.format(account_id, cls.api_key),
+        params={'endIndex': match_count})
     return json.loads(resp.content)
+
+
+class Champion:
+  # Load champion ID/name mapping
+  champion_id_file = open(CHAMPION_ID_FILENAME)
+  ID_NAME_MAP = json.loads(champion_id_file.read())
+  champion_id_file.close()
+
+  @classmethod
+  def get_name(cls, champ_id):
+    # champ ID is cast from int to str
+    return cls.ID_NAME_MAP[str(champ_id)]
+
+class Match:
+  def __init__(self, match_id):
+    self._data = RiotApi.get_match(match_id)
+
+  def get_data(self):
+    return self._data
+    
+
+class Summoner:
+  def __init__(self, name):
+    summ = RiotApi.get_summoner_by_name(name)
+    self._name = summ['name']
+    self._account_id = summ['accountId']
+    self._summoner_id = summ['id']
+
+  def get_account_id(self):
+    return self._account_id
+
+  def get_summoner_id(self):
+    return self._summoner_id
