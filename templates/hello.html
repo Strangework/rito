@@ -1,5 +1,21 @@
 <!doctype html>
+<head>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+<input id="summoner_name" type="text">
+<button id="submit">Look up CS/min</button>
+<script>
+$(document).ready(function() {
+  $("#submit").click(function() {
+    $.getJSON("summoner/" + $("#summoner_name").val(), function(data) {
+      $.each(data["report"], function(i, val) {
+        $("#main").append("<p>" + val + "</p>");
+      });
+    });
+  });
+}); 
+</script>
 <title>CS/min</title>
-{% for line in report %}
-  <p>{{ line }}</p>
-{% endfor %}
+</head>
+<body>
+<div id="main"> 
+</div>
